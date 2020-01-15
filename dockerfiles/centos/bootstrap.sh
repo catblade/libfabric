@@ -5,8 +5,7 @@ bash autogen.sh
 ./configure
 make
 make install
-rm -rf /libfabric
-yum remove -y gcc make
-yum clean all
-ldconfig
-fi_info
+mkdir /libfabric/libfabric_libs
+cp -P /libfabric/src/.libs/libfabric* libfabric_libs/.
+
+

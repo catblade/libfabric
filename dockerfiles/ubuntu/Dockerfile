@@ -7,4 +7,4 @@ FROM ubuntu:18.04 AS ubuntu-libfabric
 WORKDIR /root
 COPY --from=ubuntu-build-libfabric /libfabric/libfabric_libs/ /usr/local/lib/.
 COPY --from=ubuntu-build-libfabric /libfabric/util/.libs/ /usr/local/bin/.
-RUN ldconfig && ldd /usr/local/bin/fi_info && fi_info
+RUN ldconfig && fi_info
