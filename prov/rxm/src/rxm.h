@@ -134,6 +134,9 @@ extern size_t rxm_def_univ_size;
 extern size_t rxm_cm_progress_interval;
 extern int force_auto_progress;
 
+struct rxm_ep;
+
+
 /*
  * Connection Map
  */
@@ -192,7 +195,7 @@ struct rxm_cmap_attr {
 };
 
 struct rxm_cmap {
-	struct util_ep		*ep;
+	struct rxm_ep		*ep;
 	struct util_av		*av;
 
 	/* cmap handles that correspond to addresses in AV */
@@ -212,8 +215,6 @@ struct rxm_cmap {
 	ofi_fastlock_release_t	release;
 	fastlock_t		lock;
 };
-
-struct rxm_ep;
 
 enum rxm_cmap_reject_reason {
 	RXM_CMAP_REJECT_UNSPEC,
@@ -662,12 +663,14 @@ struct rxm_ep {
 	struct fid_ep 		*srx_ctx;
 	size_t 			comp_per_progress;
 	ofi_atomic32_t		atomic_tx_credits;
-	int			msg_mr_local;
-	int			rxm_mr_local;
+
+	bool			msg_mr_local;
+	bool			rdm_mr_local;
+	bool			do_progress;
+
 	size_t			min_multi_recv_size;
 	size_t			buffered_min;
 	size_t			buffered_limit;
-
 	size_t			inject_limit;
 	size_t			eager_limit;
 	size_t			sar_limit;

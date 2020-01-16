@@ -64,6 +64,7 @@
 #include "ofi_util.h"
 #include "ofi_file.h"
 
+#include "rxr.h"
 #define EFA_PROV_NAME "efa"
 #define EFA_PROV_VERS FI_VERSION(3, 0)
 
@@ -89,7 +90,18 @@
 #define EFA_MR_IOV_LIMIT 1
 #define EFA_MR_SUPPORTED_PERMISSIONS (FI_SEND | FI_RECV)
 
-#define EFA_DEF_NUM_MR_CACHE 36
+/*
+ * Multiplier to give some room in the device memory registration limits
+ * to allow processes added to a running job to bootstrap.
+ */
+#define EFA_MR_CACHE_LIMIT_MULT (.9)
+
+#define EFA_MIN_AV_SIZE (16384)
+
+/*
+ * Specific flags and attributes for shm provider
+ */
+#define EFA_SHM_MAX_AV_COUNT       (256)
 
 extern int efa_mr_cache_enable;
 extern size_t efa_mr_max_cached_count;
@@ -126,8 +138,8 @@ struct efa_domain {
 	struct ofi_mr_cache	cache;
 };
 
-struct fi_ops_mr efa_domain_mr_ops;
-struct fi_ops_mr efa_domain_mr_cache_ops;
+extern struct fi_ops_mr efa_domain_mr_ops;
+extern struct fi_ops_mr efa_domain_mr_cache_ops;
 int efa_mr_cache_entry_reg(struct ofi_mr_cache *cache,
 			   struct ofi_mr_entry *entry);
 void efa_mr_cache_entry_dereg(struct ofi_mr_cache *cache,
@@ -287,18 +299,27 @@ typedef struct efa_conn *
 	(struct efa_av *av, fi_addr_t addr);
 
 struct efa_av {
-	struct fid_av		av_fid;
-	struct efa_domain	*domain;
-	struct efa_ep		*ep;
-	size_t			count;
+	struct fid_av		*shm_rdm_av;
+	struct efa_domain       *domain;
+	struct efa_ep           *ep;
 	size_t			used;
 	size_t			next;
-	uint64_t		flags;
 	enum fi_av_type		type;
 	efa_addr_to_conn_func	addr_to_conn;
 	struct efa_reverse_av	*reverse_av;
+	struct efa_av_entry     *av_map;
+	struct util_av		util_av;
+	enum fi_ep_type         ep_type;
 	/* Used only for FI_AV_TABLE */
-	struct efa_conn **conn_table;
+	struct efa_conn         **conn_table;
+};
+
+struct efa_av_entry {
+	uint8_t			ep_addr[EFA_EP_ADDR_LEN];
+	fi_addr_t		rdm_addr;
+	fi_addr_t		shm_rdm_addr;
+	bool			local_mapping;
+	UT_hash_handle		hh;
 };
 
 struct efa_ah_qpn {
@@ -373,6 +394,11 @@ static inline uint32_t align_up_queue_size(uint32_t req)
 	return req;
 }
 
+static inline struct efa_av *rxr_ep_av(struct rxr_ep *ep)
+{
+	return container_of(ep->util_ep.av, struct efa_av, util_av);
+}
+
 #define is_power_of_2(x) (!(x == 0) && !(x & (x - 1)))
 #define align_down_to_power_of_2(x)		\
 	({					\
@@ -385,8 +411,8 @@ static inline uint32_t align_up_queue_size(uint32_t req)
 extern const struct efa_ep_domain efa_rdm_domain;
 extern const struct efa_ep_domain efa_dgrm_domain;
 
-struct fi_ops_cm efa_ep_cm_ops;
-struct fi_ops_msg efa_ep_msg_ops;
+extern struct fi_ops_cm efa_ep_cm_ops;
+extern struct fi_ops_msg efa_ep_msg_ops;
 
 const struct fi_info *efa_get_efa_info(const char *domain_name);
 int efa_domain_open(struct fid_fabric *fabric_fid, struct fi_info *info,
@@ -397,6 +423,10 @@ int efa_av_open(struct fid_domain *domain_fid, struct fi_av_attr *attr,
 		struct fid_av **av_fid, void *context);
 int efa_cq_open(struct fid_domain *domain_fid, struct fi_cq_attr *attr,
 		struct fid_cq **cq_fid, void *context);
+
+/* AV sub-functions */
+int efa_av_insert_addr(struct efa_av *av, struct efa_ep_addr *addr,
+		       fi_addr_t *fi_addr, uint64_t flags, void *context);
 
 /* Caller must hold cq->inner_lock. */
 void efa_cq_inc_ref_cnt(struct efa_cq *cq, uint8_t sub_cq_idx);
