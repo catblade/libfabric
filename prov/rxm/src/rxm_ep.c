@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2016 Intel Corporation. All rights reserved.
+ * Copyright (c) 2020 Cisco Systems, Inc.  All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -909,7 +910,7 @@ rxm_ep_msg_inject_send(struct rxm_ep *rxm_ep, struct rxm_conn *rxm_conn,
 		       struct rxm_pkt *tx_pkt, size_t pkt_size,
 		       ofi_cntr_inc_func cntr_inc_func)
 {
-	FI_DBG(&rxm_prov, FI_LOG_EP_DATA, "Posting inject with length: %" PRIu64
+	FI_DBG(&rxm_prov, FI_LOG_EP_DATA, "Posting inject with length: %zu"
 	       " tag: 0x%" PRIx64 "\n", pkt_size, tx_pkt->hdr.tag);
 
 	assert((tx_pkt->hdr.flags & FI_REMOTE_CQ_DATA) || !tx_pkt->hdr.flags);
@@ -925,7 +926,7 @@ static inline ssize_t
 rxm_ep_msg_normal_send(struct rxm_conn *rxm_conn, struct rxm_pkt *tx_pkt,
 		       size_t pkt_size, void *desc, void *context)
 {
-	FI_DBG(&rxm_prov, FI_LOG_EP_DATA, "Posting send with length: %" PRIu64
+	FI_DBG(&rxm_prov, FI_LOG_EP_DATA, "Posting send with length: %zu"
 	       " tag: 0x%" PRIx64 "\n", pkt_size, tx_pkt->hdr.tag);
 
 	assert((tx_pkt->hdr.flags & FI_REMOTE_CQ_DATA) || !tx_pkt->hdr.flags);
@@ -956,7 +957,7 @@ rxm_ep_alloc_rndv_tx_res(struct rxm_ep *rxm_ep, struct rxm_conn *rxm_conn, void 
 	tx_buf->flags = flags;
 	tx_buf->count = count;
 
-	if (!rxm_ep->rxm_mr_local) {
+	if (!rxm_ep->rdm_mr_local) {
 		ret = rxm_msg_mr_regv(rxm_ep, iov, tx_buf->count, data_len,
 				      FI_REMOTE_READ, tx_buf->mr);
 		if (ret)
@@ -1008,7 +1009,7 @@ rxm_ep_rndv_tx_send(struct rxm_ep *rxm_ep, struct rxm_conn *rxm_conn,
 err:
 	FI_DBG(&rxm_prov, FI_LOG_EP_DATA,
 	       "Transmit for MSG provider failed\n");
-	if (!rxm_ep->rxm_mr_local)
+	if (!rxm_ep->rdm_mr_local)
 		rxm_msg_mr_closev(tx_buf->mr, tx_buf->count);
 	ofi_buf_free(tx_buf);
 	return ret;
@@ -2193,7 +2194,7 @@ static void rxm_ep_settings_init(struct rxm_ep *rxm_ep)
 				rxm_ep->rxm_info->tx_attr->size);
 
 	rxm_ep->msg_mr_local = ofi_mr_local(rxm_ep->msg_info);
-	rxm_ep->rxm_mr_local = ofi_mr_local(rxm_ep->rxm_info);
+	rxm_ep->rdm_mr_local = ofi_mr_local(rxm_ep->rxm_info);
 
 	rxm_ep->inject_limit = rxm_ep->msg_info->tx_attr->inject_size;
 
@@ -2225,7 +2226,7 @@ static void rxm_ep_settings_init(struct rxm_ep *rxm_ep)
 	        "\t\t rxm inject size: %zu\n"
 		"\t\t Protocol limits: Eager: %zu, "
 				      "SAR: %zu\n",
-		rxm_ep->msg_mr_local, rxm_ep->rxm_mr_local,
+		rxm_ep->msg_mr_local, rxm_ep->rdm_mr_local,
 		rxm_ep->comp_per_progress, rxm_ep->buffered_min,
 		rxm_ep->min_multi_recv_size, rxm_ep->inject_limit,
 		rxm_ep->rxm_info->tx_attr->inject_size,
